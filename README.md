@@ -1,4 +1,4 @@
 splatr
 ======
 
-Space-time Partial Likelihood Analysis Tools for R
+Space-time Partial Likelihood Analysis Tools for R - an R package.
