@@ -7,3 +7,7 @@ Author: Barry Rowlingson <b.rowlingson@gmail.com>
 Maintainer: Barry Rowlingson <b.rowlingson@gmail.com>
 Description: Some space-time event modelling functions.
 License: MIT
+Collate:
+    'logLinear.R'
+    'params.R'
+    'powerSum.R'

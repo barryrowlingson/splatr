@@ -72,9 +72,14 @@ function(x){
 paramInfo <- function(...,fixed=NULL,starting=NULL){
   p = list(...)
 
+  ## parameters need a name...
+  if(any(unlist(lapply(p,function(x){is.null(x$name)})))){
+    stop("All parameters need a name")
+  }
+  
   pnames = unlist(lapply(p,function(x){x$name})) # parameter names
   pvnames = unlist(lapply(p,function(x){rep(x$name,length(x$label))}))
-  nvalues = sum(unlist(lapply(p,function(x){length(x$label)}))) # how many values...
+  nvalues = sum(unlist(lapply(p,function(x){length(x$label)*length(x$null)}))) # how many values...
   nparams = length(p) # how many parameters (some of which may be vectors)
 
   ## check fixed names are all in the parameter names
@@ -90,13 +95,15 @@ paramInfo <- function(...,fixed=NULL,starting=NULL){
   pos = 1
   fixedValues = NULL
   for(ip in 1:nparams){
-    if(p[[ip]]$name %in% names(fixed)){
-      variableMask[pos:(pos+length(p[[ip]]$label)-1)]=FALSE
-      fixedValues = c(fixedValues,fixed[[p[[ip]]$name]])
-    }else{
-      variableMask[pos:(pos+length(p[[ip]]$label)-1)]=TRUE
+    if(!is.null(p[[ip]]$label)){
+      if(p[[ip]]$name %in% names(fixed)){
+        variableMask[pos:(pos+length(p[[ip]]$label)-1)]=FALSE
+        fixedValues = c(fixedValues,fixed[[p[[ip]]$name]])
+      }else{
+        variableMask[pos:(pos+length(p[[ip]]$label)-1)]=TRUE
+      }
+      pos = pos + length(p[[ip]]$label)
     }
-    pos = pos + length(p[[ip]]$label)
     
   }
 

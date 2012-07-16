@@ -1,5 +1,10 @@
 #' a powered sum covariate
 #'
+#' @param data data frame
+#' @param f formula - first covariate is baseline
+#' @param fixed list of fixed parameter values
+#' @param starting starting values for optimiser
+#' @param prefixes names to give the parameters
 #' @export
 
 powerSum <- function(data, f, fixed=NULL, starting=NULL, prefixes=c("beta","gamma")){

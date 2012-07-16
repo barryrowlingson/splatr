@@ -60,3 +60,10 @@ expect_equal(mergeFixed(pi4,NULL),c(beta=2,beta=3,gamma=1))
 
 }
           )
+
+test_that("null param functions",
+          {
+            expect_error(paramInfo(list(name=NULL,label="beta.")),"All parameters need a name")
+            pnull2 = paramInfo(list(name="beta",label=NULL))
+          }
+          )
