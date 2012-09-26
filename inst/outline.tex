@@ -1,0 +1,694 @@
+\documentclass{article}
+
+\title{{\sc Plasta}/{\sc Splatr} \\ Space-time models with partial likelihood}
+
+\begin{document}
+
+\maketitle
+
+\section*{Naming}
+Previous package developments in this area had names that reflected only the infectious modelling 
+applications - namely {\sc Osiris} (Our SIR in Space-time)  and {\sc Plim} (Partial Likelihood Infectious Modelling). 
+With new applications comes a new name - either {\sc Plasta} - Partial Likelihood Analysis for Space-Time Applications or
+{\sc Splatr} - Space-time Partial Likelihood Analysis Tools for R.
+
+\section*{Existing Package Connections}
+The following packages may be of use or interest:
+\begin{itemize}
+\item {\tt surveillance} - contains some space-time modelling and data handling functionality.
+\item {\tt sp} - for general spatial data structures.
+\item {\tt spatstat} - for spatial point-patterns.
+\end{itemize}
+
+\section*{Outline}
+
+We want to develop a package for modelling space-time point patterns, as in the FMD outbreak model,
+the nesting birds model, or the swine-flu model. These three examples represent different aspects of the
+same essential underlying process:
+
+\begin{enumerate}
+\item FMD: cases occur a maximum of once at a subset of possible points (such as farm locations).
+\item Swine Flu: small numbers of cases (relative to the population) occur 
+with a related spatial label (such as an electoral ward).
+\item Bird Nest: cases occur anywhere on an island.
+\end{enumerate}
+
+The partial likelihood probability for each case, $i$, occurring at time $t_i$ of
+these models is $\lambda_i/D(t_i)$, where $D(.)$ (for `Denominator') is:
+
+\begin{enumerate}
+\item for FMD, the sum of $\lambda_j(t_i)$ of all farms, $j$, that are susceptible at time $t_i$.
+\item for swine flu, $\lambda_j(t_i)$ summed over all regions.
+\item for bird nesting, the integral of $\lambda(t_i)$ over the nesting region.
+\end{enumerate}
+
+In each example there may be up two times of importance to each case as the case goes from susceptible
+to infectious to removed:
+
+\begin{enumerate}
+\item for FMD, farms are infectious from a fixed number of days
+  before report up to the culling date. All infected farms are
+  culled. The dataset may also include farms that are culled without
+  being reported infected (pre-emptive culling) and farms that are
+  neither reported infected nor culled. Missing time events are coded as {\tt NA} values.
+\item for swine flu, cases are deemed infectious for a fixed number of days.
+\item for bird nesting, an arriving bird doesn't leave. Hence there is only one time point per event.
+\end{enumerate}
+
+Covariates for these examples are as follows:
+
+\begin{enumerate}
+\item for FMD, we have farm-level covariates for all farms in the study region
+\item for swine flu we have region-level covariates for all regions
+\item for bird nesting we have spatial covariates over the island
+\end{enumerate}
+
+For FMD and swine flu we break $\lambda$ into infectious, susceptible, and transmission components for
+each infectious case:
+$$
+\lambda_{ij}(t) = A_i(t)B_j(t)f_{ij}(t)
+$$
+
+Covariate parameters for infectors appears in $A_i$ and that for susceptibles in $B_j$.
+Typically $f_{ij}(t)$ is a function of some distance metric between farms or regions. This could be 
+a simple Euclidean distance or some measure of travel time or association.
+
+For bird nesting, $\lambda$ is a continuous function over the space which depends on the 
+covariates and the locations of existing nests. The parameterisation of the dependence 
+on the covariates and locations should be flexible.
+
+
+\section*{FMD Examples}
+
+The SMMR paper explores a number of possibilities for modelling the epidemic. For the infectious
+and susceptible components the most general form is:
+$$
+A_i = (n_{0i}^\gamma + \alpha_1 n_{1i}^\gamma + \alpha_2 n_{2i}^\gamma + \dots) \exp(z'_i\delta)
+$$
+
+where $n_{ki}$ is the number of animals of type $k$ in farm $i$ and
+the $\alpha$ parameters give the effect of those animals relative to
+type $0$ animals. The $\exp(z'_i\delta)$ term allows for more general
+farm covariates, either continuous such as farm area or altitude, or
+categorical such as hill farm/lowland farm/urban smallholding.
+
+For the transmission function, the following form for $f(u)$ is used:
+$$
+f(u) =  \exp(-(u/\phi)^\kappa) + \rho
+$$
+
+with $\kappa$ either variable or fixed at $0.5$ for partially pragmatic reasons.
+
+
+\subsection*{Proposed Functions}
+
+Given a data set with its first few rows looking like this:
+
+\begin{verbatim}
+           x      y  area ncattle npigs nsheep report   cull 
+1855  350.85 557.59  15.5      25     0      0  28.08  34.87
+2875  341.73 572.09 205.0     270     0    597     NA  34.71
+4379  350.41 527.04  88.1     300     0    312  28.31  31.73 
+2779  337.32 569.50  88.0     210     0      0  28.60  35.41 
+2409  347.80 541.85 105.6     137     0    436     NA     NA
+2485  356.90 541.12 137.5      69     0   1573  29.62  34.64 
+\end{verbatim}
+
+ we would like to be able to do:
+
+\begin{verbatim}
+> fit0 = fitSIR2(
+           data, 
+           times = ~I(report-5)+cull,
+           distF = expDecay(~x+y,kappa=0.5,starting(phi=.2,rho=.01))
+           )
+\end{verbatim}
+
+to fit a model with no covariate information. We can then add animal abundance covariates and
+farm level covariates as appropriate:
+
+\begin{verbatim}
+> fit1 = fitSIR2(
+           data,
+           times=~I(report-5)+cull,
+           cov=list(
+              powerSum(~nsheep+ncattle,starting(1),gamma=1),
+              logLinear(~area,starting(1))
+              ),
+           distF = expDecay(~x+y,kappa=0.5,starting(phi=.2,rho=.01)),
+           ...
+           )
+\end{verbatim}
+
+with the arguments as follows:
+
+\begin{itemize}
+\item {\tt data} the data frame as above
+\item {\tt times} a formula for infection and removal times. Note the use of {\tt I(report-5)} to implement a 
+five-day reporting delay
+\item {\tt cov} a list of covariate expressions
+\item {\tt distF} an expression for the distance-dependence function.
+\item {\tt ...} further arguments to control the optimisation algorithm.
+\end{itemize}
+
+For more than two types of animal, and fitting the kappa value, this simply becomes:
+
+\begin{verbatim}
+> fit2 = fitSIR2(
+           data,
+           times=~I(report-5)+cull,
+           cov=list(
+              powerSum(~nsheep+ncattle+npigs,gamma=1,starting(1,1)),
+              logLinear(~area,starting(1))
+              ),
+           distF = expDecay(~x+y,kappa=0.5,starting(phi=.2,rho=.01)),
+           ...
+           )
+\end{verbatim}
+
+If the $\kappa$ and $\gamma$ values are to be optimised over, this becomes:
+
+\begin{verbatim}
+> fit3 = fitSIR2(
+           data,
+           times=~I(report-5)+cull,
+           cov=list(
+              powerSum(~nsheep+ncattle+npigs,starting(1,1,gamma=1))
+              logLinear(~area,starting(1))
+              ),
+           distF = expDecay(~x+y,starting(phi=.2,rho=.01,kappa=0.5)),
+           ...
+           )
+\end{verbatim}
+
+It should also be possible for the user to get to the underlying log-likelihood function for the data. 
+We supply a function called \verb|llikSIR2| which returns the log-likelihood function:
+
+\begin{verbatim}
+> L0 = likSIR2(
+           data, times = ~I(report-5)+cull,
+           cov=list(
+              powerSum(~nsheep+ncattle,gamma=1),
+              logLinear(~area)
+              ),
+           distF = expDecay(~x+y,kappa=0.5)
+           )
+\end{verbatim}
+
+Now \verb|L0| is a function, and its parameters are just the parameters of the model: $\alpha$, $\beta$, $\delta$, $\phi$, and $\rho$ -- 
+and it returns the partial log-likelihood:
+
+\begin{verbatim}
+> L0(c(1,2,0.1,0.001,-2))
+[1] -4534.02
+\end{verbatim}
+
+The user can then use \verb|L0| wherever they need to compute a log-likelihood, such as in likelihood profiles. They can also
+plug this into \verb|optim| with only the \verb|optim| parameters to worry about (most importantly 
+to set \verb|fnscale| to $-1$ so that \verb|optim| maximises the log-likelihood):
+
+\begin{verbatim}
+> optim(L0, c(1,2,0.1,.001,-2), method="BFGS",
+        control=list(fnscale=-1,reltol=1e-3),hessian=TRUE)
+\end{verbatim}
+
+This gives the advanced user total freedom of control parameters and the option to
+use newer algorithms from other R packages.
+
+
+\subsection*{Support Functions}
+
+Useful things to do with the data include:
+\begin{itemize}
+\item summary of the SIR state of the data at a given time point.
+\item plot of the time-behaviour of the data showing numbers of points in each of the SIR states
+\item map of the points at a given time point showing which points are in which SIR state
+\item animation of the epidemic in progress
+\item simulations
+\end{itemize}
+
+\subsection*{Extensions}
+
+The model could be extended to cover the situation where farms can get multiple infections. The data would 
+probably have to be supplied in `long' format with one row per infection, and another data frame with one row per farm 
+with per-farm covariates. The model could possibly include the effect on infectious/susceptibility rates of farms that
+have already had previous infections.
+
+
+\section*{Swine Flu Examples}
+
+For the Swine Flu example we have a data frame of cases with time and
+region code, and a data frame of regions with covariates. The
+covariates must include coordinates and the population of the
+region. The infectious period is a fixed number of days starting from
+the report date.
+
+\subsection*{Proposed Functions}
+
+Given a data frame of cases:
+
+\begin{verbatim}
+> head(caseData)
+     region       Date Age sex
+1 Zone-0015 2010-01-26  15   F
+2 Zone-0015 2010-02-07  28   M
+3 Zone-0016 2009-12-05  27   F
+4 Zone-0016 2010-02-23  45   M
+5 Zone-0016 2010-03-03  40   F
+6 Zone-0016 2010-01-20  40   F
+\end{verbatim}
+
+and a data frame of region information:
+
+\begin{verbatim}
+> head(regionData)
+          Population IMDScore fWhite    XC    YC
+Zone-0015       4452       28   13.5 26400 17800
+Zone-0016      10691       76   74.7 28000 17500
+Zone-0017       2157       64   62.6 24500 15100
+Zone-0020       7025       12   93.0 24900 13500
+Zone-0021       8963       84   75.8 28800 14500
+Zone-0022       3621       28    7.1 25600 17700
+\end{verbatim}
+
+To fit a purely distance-decay model we do:
+
+\begin{verbatim}
+fit1 = fitSIR1(
+      start,
+      cases = caseData, ~region+Date,
+      locations = regionData, 
+      distDecay = dDecay(~XC+YC),
+      covar = ~1, pop = ~Population,
+      tInfect = 5
+      )
+\end{verbatim}
+
+To fit a purely covariate model we do:
+
+\begin{verbatim}
+fit2 = fitSIR1(
+      start,
+      cases = caseData, ~region+Date,
+      locations = regionData, 
+      distDecay = flat(1)
+      covar = ~IMDScore+fWhite, pop = ~Population,
+      tInfect = 5
+      )
+\end{verbatim}
+
+To fit a full model with spatial distance dependence and covariates:
+
+\begin{verbatim}
+Ffull = fitSIR1(
+      start,
+      cases = caseData, ~region+Date,
+      locations = regionData, 
+      distDecay = dDecay(~XC+YC)
+      covar = ~IMDScore+fWhite, pop = ~Population,
+      tInfect = 5
+      )
+\end{verbatim}
+
+\subsection*{Support Functions}
+
+The following operations are useful:
+\begin{itemize}
+\item time-series plots of case numbers
+\item time-series plots of cases in regions
+\item maps of total cases
+\item maps of cases at time points
+\end{itemize}
+
+\subsection*{Extensions}
+
+Variations in the distance-decay model can be incorporated. For example to model
+according to some matrices \verb|M(regions)| and \verb|N(regions)| as a linear expression we could do:
+
+\begin{verbatim}
+Fnet = fitSIR1(
+            cases = caseData, ~region+Date,
+            locations = regionData, 
+            distDecay = dLinear(M(locations),N(locations)),
+            covar = ~IMDScore+fWhite, pop = ~Population,
+            tInfect = 5
+            )
+\end{verbatim}
+
+This would allow the proposed extension using commuting number matrices or school journey
+matrices to be included.
+
+
+
+\section*{Bird Nesting Examples}
+
+For the bird nesting example, the partial likelihood depends on the nature of the underlying spatial surface 
+and the locations of existing bird nests. The paper experiments with different dependencies on the 
+ground elevation and the functional dependence on nest distance. There are no covariates for the nests 
+themselves.
+
+\subsection*{Proposed Functions}
+
+For these applications we propose a basic function called \verb|fitST|, for partial-likelihood space-time
+models.
+
+Given a data set such as:
+
+\begin{verbatim}
+> nests[1:4,]
+           x     y arrive species
+Nest-1 13490 23110     30  Puffin
+Nest-2 13440 23730     31    Tern
+Nest-3 13090 23720     38    Gull
+Nest-4 12810 23370     44  Puffin
+\end{verbatim}
+
+and some function that returns the height at a given location:
+
+\begin{verbatim}
+> height(13440,23730)
+[1] 21.7
+\end{verbatim}
+
+We should be able to do:
+
+\begin{verbatim}
+> fit1 = fitST(
+   start=c(beta=c(0.1,-0.1), theta=40, phi=2),
+   nests, times=~arrive, location=~x+y,
+   spatialFX=~height+I(height^2), 
+   spatialFunctions=list(height=height),
+   eventFX = dDecay(neighs=1, c=1, d0=0.24),
+   area=island,
+   ...
+   )
+\end{verbatim}
+
+Suppose we also have a function of location that returns a categorical variable describing surface nature at given points.
+Here we show the nature of the ground at the nest sites:
+
+\begin{verbatim}
+> surface(nests$x,nests$y)
+ [1] meadow rock   meadow grass  grass  meadow grass
+ [8] grass  grass  meadow
+Levels: grass meadow rock
+\end{verbatim}
+
+This can be incorporated as a spatial effect covariate, with two extra
+beta parameters for the three-level factor:
+
+\begin{verbatim}
+> fit2 = fitST(
+   start=c(beta=c(0.1,-0.1,.2,.3), theta=40, phi=2),
+   nests, times=~arrive, location=~x+y,
+   spatialFX=~height+I(height^2)+surface, 
+   spatialFunctions=list(height=height,surface=surface),
+   eventFX = dDecay(neighs=1, c=1, d0=0.24),
+   area=island
+   )
+\end{verbatim}
+
+with the factor parameters being relative to the first level of the factor (in this case, `grass').
+
+As with FMD, we expose a way of creating a log-likelihood function:
+
+\begin{verbatim}
+> F = llikST(
+   nests,
+   times=~arrive+depart, location=~x+y,
+   spatialFX=~height+I(height^2), 
+   spatialFunctions=list(height=height),
+   eventFX = dDecay(neighs=1, c=1, d0=0.24),
+   area=island
+   )
+\end{verbatim}
+
+This returns a function that computes the partial log-likelihood, in this case taking four parameters:
+\begin{verbatim}
+> F(c(beta=c(0.022,-0.046), theta=38.79, phi=2.82))
+[1] -902.66
+\end{verbatim}
+
+\subsection*{Support Functions}
+
+Useful things to do with the data include:
+\begin{itemize}
+\item summary of the state of the process at some time point
+\item the intensity surface at some time point over a given space
+\item map of the process at some time point, possibly superimposed on the intensity surface
+\end{itemize}
+
+\subsection*{Extensions}
+
+If the species of nesting bird varies then a likelihood for a marked point pattern could be computed. This could
+model whether birds of the same species nest together or whether certain species avoid each other. It might possibly 
+also show whether birds of a species have an affinity for areas with particular covariate values (high areas, or rocky 
+areas).
+
+
+The function could also be extended to cope with situations where the birds nest for a time and then
+leave by adding an extra component to the \verb|times| formula:
+
+\begin{verbatim}
+> fit3 = fitST(
+   start,
+   nests, times=~arrive+depart, location=~x+y,
+   spatialFX=~height+I(height^2)+surface, 
+   spatialFunctions=list(height=height,surface=surface),
+   eventFX = dDecay(neighs=1, c=1, d0=0.24),
+   area=island
+   )
+\end{verbatim}
+
+Whether the influence of a location that has never had a bird is different from one where a bird has left needs to be decided
+according to the application. I'm not sure what the code should do by default. Clearly with nest building, new birds may not 
+try to use abandoned nests until the nests are clearly abandoned, or they may re-use empty nests preferentially. I don't know 
+enough about birds to answer this. Any of these possibilities could be implemented in code.
+
+
+\section*{Extending the Framework}
+
+\subsection*{Specifying a New Distance-Decay in the FMD model}
+
+The Euclidean distance-decay effect in the FMD model is a specific case of a transmission function. The parameters of
+such a function in general are the two farms of interest and the parameters of the decay function:
+
+\begin{verbatim}
+dDecay = function(params,i,j){...}
+\end{verbatim}
+
+Now this function needs to get the specific information about the farms in order to compute the transmission factor. One 
+technique for this would be for the function to get the data from the global environment, but that ties the function
+to a particular named object. By creating this function within another function it can get the data from objects
+local to its own environment:
+
+\begin{verbatim}
+fCowSheep <- function(data){
+  x=data$x
+  y=data$y
+  foo = function(phirho,i,j){
+    phi=phirho[1]
+    rho=phirho[2]
+    kappa=0.5
+    u2=(x[i]-x[j])^2+(y[i]-y[j])^2
+    ep2 = exp(phi)^2
+    return( exp(-(u2/ep2)^(kappa/2) ) + exp(rho) )
+  }
+  return(foo)
+}
+\end{verbatim}
+
+Then to compute the value of the transmission function between farms 3
+and 27 in our data we first construct the function using our data and
+then call it with the parameters and the farm indexes:
+
+\begin{verbatim}
+dDecay = fCowSheep(data)
+dDecay(c(0.1,-2.3), 3, 27)
+\end{verbatim}
+
+At this point we can even remove {\tt data} from our R session and the function will still work - using the 
+values of {\tt x} and {\tt y} stored in its own environment. You can inspect this environment using the {\tt with} function:
+
+\begin{verbatim}
+> with(environment(dDecay),ls())
+[1] "data" "foo"  "x"    "y"   
+\end{verbatim}
+
+In order to use these functions within the framework it is necessary to add some metadata to the function
+by creating it with some attributes for the number of parameters and their names:
+
+\begin{verbatim}
+fCowSheep <- function(data){
+  [...]
+  foo = function(phirho,i,j){
+    [...]
+  }
+  attr(foo,"nparam")=2
+  attr(foo,"params")=c("phi","rho")
+  return(foo)
+}
+\end{verbatim}
+
+This ensures that the framework takes the right number of parameters from the overall vector of parameters
+and feeds it to this function in the right places.
+
+It is also a requirement that the function works correctly for vector values of either \verb|i| or \verb|j|.
+
+
+\subsection*{Specifying a New Distance-effect For A Space-Time Point Pattern}
+
+The general distance effect in the space-time point pattern case is a function of location and time. In the bird
+nesting case the function boiled down to the distance to the nearest present bird at that time. A more complex 
+model might be needed for earthquake pattern modelling. This is how we would include a temporal-decay component
+to the distance-effect in order to model aftershocks around an initial quake.
+
+
+$$
+h(s,t)=1 + (\theta_s \exp\{-s/\phi_s\}) . (\theta_t \exp\{-t/\phi_t\})
+$$
+
+
+\section*{How Flexible Do We Make This?}
+
+
+The main fitting function works by constructing the likelihood function and calling optim. Quite simply,
+it looks like this:
+
+\begin{verbatim}
+fitST = function(start, [other args]){
+   L = llikST([other args])
+   optim(start,L)
+}
+\end{verbatim}
+
+The likelihood function works by constructing a lambda function and then looping over it, like this:
+
+\begin{verbatim}
+llikST = function([args]){
+ lambda = buildLambda([args])
+ logl=0
+ for(i in 1:length(x)){
+    logl = logl + log( 
+      lambda(x[i],t[i],params) / integrated(lambda,params,t[i],A)
+    )
+  }
+  logl
+}
+\end{verbatim}
+
+The lambda construction function constructs the covariate and proximity effect functions and returns
+a lambda function that computes their product:
+
+\begin{verbatim}
+buildLambda = function([args]){
+  covF = covarFunction([args])
+  proxF = proxFunction([args])
+  lambdaF = function(x,t,params){
+    covF(x,t,params[])*proxF(x,t,params[])
+  }
+  lambdaF
+}
+\end{verbatim}
+
+The partial log-likelihood for the bird nesting application is:
+
+$$
+L_p = \sum^n_{i=1} \log \frac{\lambda(x_i,t_i|H_{t_i})}{\int_A \lambda(x,t|H_{t_i}) \mathrm{d}x}
+$$
+
+so in the fully general case, someone has to write a function, lambda, which gets plugged into this:
+
+\begin{verbatim}
+L = function(params,x,t,lambda,A){
+ logl=0
+ for(i in 1:length(x)){
+  logl = logl + log( 
+     lambda(x[i],t[i],params) / integrated(lambda,params,t[i],A)
+    )
+ }
+ logl
+}
+\end{verbatim}
+
+The application in the paper splits this into spatial covariates (with no time-dependence) and a nest-proximity effect. With the 
+cancellation of $\lambda_0(t)$ the relevant function is then:
+
+$$
+\lambda(x,t) = \exp(\beta_1 z(x)) g(x,t|H_t,\beta_2)
+$$
+
+where $\beta_1$ and $\beta_2$ are two vectors of parameters.
+
+The functions proposed above support any number of log-linear terms in the first part and a choice of implemented models for the second part.
+
+It is probably just as easy to allow for space-time varying covariates:
+
+$$
+\lambda(x,t) = \exp(\beta_1 z(x,t)) g(x,t|H_t,\beta_2)
+$$
+
+and this would allow for changes in the nature of the surface to be incorporated. The user would supply
+a function of location and time. For example, if at point $(123.2,212.0)$ an erosion event at $t=1.0$ turns the
+meadow surface to rock, the function would behave as follows:
+
+\begin{verbatim}
+> surface(132.2, 212.0, 0.5)
+ [1] meadow 
+Levels: grass meadow rock
+> surface(132.2, 212.0, 2.5)
+ [1] rock 
+Levels: grass meadow rock
+\end{verbatim}
+
+The next question is whether we can allow for non log-linear covariate terms, and whether we can allow for 
+arbitrary event proximity functions.
+
+
+\section*{Variations}
+
+The FMD and Swine Flu models are so similar that they could be modelled by a single function. The variations are:
+
+For the infection time:
+
+\begin{itemize}
+\item assumed known infection time
+\item infection time parametrically dependent on data
+\end{itemize}
+
+For the removal time:
+
+\begin{itemize}
+\item given or assumed known removal time 
+\item infection duration parametrically dependent on data
+\end{itemize}
+
+Removals and infections may also involve:
+
+\begin{itemize}
+\item removal of spatial units after infection
+\item possible multiple infections per spatial unit
+\end{itemize}
+
+The spatial basis can be:
+
+\begin{itemize}
+\item cases are from a finite set of discrete units
+\item cases are individuals from a population at a set of locations
+\end{itemize}
+
+Covariate options include:
+
+\begin{itemize}
+\item selection of covariates and covariate formula for $A_i$ and $B_j$
+\item selection of transmission matrix and functional form for $C_{ij}$
+\end{itemize}
+
+With Swine Flu each case is related in a many-to-one fashion to the spatial units (regions), but for
+the FMD the cases are a one-to-one mapping of cases to spatial units (farms). With the former its necessary to give
+two data frames - one of cases and one of regions - but with the latter it can all go in one data frame.
+
+The FMD example could be considered as cases in spatial units with a population of one, with removal. The Swine Flu example
+was spatial units with a large population (and no removal).
+
+\end{document}
