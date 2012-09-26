@@ -9,11 +9,11 @@ test_that("powerSum data",{
     )
 
 # need more than one covariate (since the effect is relative)
-expect_error(powerSum(data,~cows,fixed=list(gamma=2),starting=list(beta=c(1,1))),"more than one")
+expect_error(powerSum(~cows,fixed=list(gamma=2),starting=list(beta=c(1,1)))(data),"more than one")
 
 # this works because we don't validate starting at this point.
-p1 = powerSum(data,~cows+sheep,fixed=list(gamma=2),starting=list(beta=c(1,1)))
-p2 = powerSum(data,~cows+sheep)
+p1 = powerSum(~cows+sheep,fixed=list(gamma=2),starting=list(beta=c(1,1)))(data)
+p2 = powerSum(~cows+sheep)(data)
 
 expect_error(p1(1:10,c(3,4)),"Wrong number of values")
 
@@ -26,9 +26,9 @@ expect_equal(p2(1:10,c(1.1,2.1)),data$cows^(2.1)+ exp(1.1)*data$sheep^(2.1))
 
 # testing prefixes:
 
-expect_error(powerSum(data,~cows+sheep,fixed=list(gamma=2),prefixes=c("zeta","lamma")),"Unknown fixed")
+expect_error(powerSum(~cows+sheep,fixed=list(gamma=2),prefixes=c("zeta","lamma"))(data),"Unknown fixed")
 
-p3 = powerSum(data,~cows+sheep,fixed=list(lamma=2),prefixes=c("zeta","lamma"))
+p3 = powerSum(~cows+sheep,fixed=list(lamma=2),prefixes=c("zeta","lamma"))(data)
 expect_equal(p3(1:10,2.3),data$cows^2+ exp(2.3)*data$sheep^2)
   
 }

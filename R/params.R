@@ -139,3 +139,11 @@ mergeFixed <- function(pi,variables){
   names(values)=pi$pvnames
   return(values)
 }
+
+#' get the parameter meta-data from a specification
+#'
+#' @export
+#'
+getParamInfo <- function(pmodel){
+  return(get("parameters",envir=environment(pmodel)))
+}

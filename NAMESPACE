@@ -1,2 +1,3 @@
+export(likSIR2)
 export(logLinear)
 export(powerSum)

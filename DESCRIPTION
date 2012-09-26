@@ -11,3 +11,4 @@ Collate:
     'logLinear.R'
     'params.R'
     'powerSum.R'
+    'SIR2.R'
