@@ -147,3 +147,54 @@ mergeFixed <- function(pi,variables){
 getParamInfo <- function(pmodel){
   return(get("parameters",envir=environment(pmodel)))
 }
+
+print.pfunc <- function(x,...){
+  cat("parameterised function\n")
+  
+}
+
+nvariables <- function(p){
+  UseMethod("nvariables")
+}
+
+nvariables.pfunc <- function(p){
+  params = getParamInfo(p)
+  return(sum(params$variableMask))
+  
+}
+
+#' break a vector into parts
+#'
+#' return the values for part i
+#'
+breakVariable <- function(v,i,breakMap){
+  if(length(v)!=length(breakMap)){
+    stop("error breaking variables into parameters")
+  }
+
+  return(v[breakMap==i])
+  
+}
+
+#' return the pattern for breaking a variable into bits
+#'
+makeBreakMap <- function(lengths){
+  pattern = rep(1:length(lengths),lengths)
+  attr(pattern,"npars")=length(lengths)
+  return(pattern)
+}
+  
+
+makeAfunction <- function(covFlist, breakMap){
+  force(covFlist)
+  force(breakMap)
+  A <- function(i,params){
+    p = 1:length(covFlist)
+    M = laply(p,
+      function(ip){covFlist[[ip]](i,breakVariable(params,ip+1,breakMap))},
+      .drop=FALSE
+      )
+    apply(M,2,prod)
+  }
+  return(A)
+}

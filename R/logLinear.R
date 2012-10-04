@@ -49,7 +49,10 @@ logLinear <- function(f, starting=NULL,prefixes="beta"){
       P = mergeFixed(parameters,variables)
       return(offset[i]+as.vector(mm[i,,drop=FALSE] %*% P))
     }
+    attr(F,"formula")="log-linear"
+    class(F)=c("pfunc","function")
     F
   }
+  class(makeF)=c("pfuncmaker","function")
   makeF
 }

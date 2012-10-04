@@ -59,6 +59,8 @@ test_that("logLinear",{
   l9 = logLinear(~offset(pigs)-1)(data)
   p9 = getParamInfo(l9)
   expect_equal(l9(1:10,NULL),data$pigs)
+
+  expect_equal(attr(l9,"formula"),"log-linear")
   
 }
           )

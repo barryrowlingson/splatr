@@ -17,7 +17,7 @@ data=data.frame(
   )
 data$cull = data$report + 5
 
-test_that("SIR2", {
+test_that("SIR2 checking", {
 
   expect_error(likSIR2(),"missing")
   expect_error(likSIR2(data,~x))
@@ -26,6 +26,23 @@ test_that("SIR2", {
   
 }
           )
+
+
+test_that("SIR2 running",{
+  L = likSIR2(data,
+          times=~I(report-5)+cull,
+          cov=list(
+            powerSum(~sheep+cows,fixed=list(gamma=1)), # 1 parameter
+            logLinear(~area) # 2 parameters
+            ),
+          distDecay = expDecay(~x+y,fixed=c(kappa=0.5)) # 3 parameters
+          )
+  expect_error(L(),"Incorrect number of parameters")
+  expect_error(L(c(0,0,0)),"Incorrect number of parameters")
+  expect_error(L(c(0,0,0,0,0,0,0)),"Incorrect number of parameters")
+  
+})
+
 
 
 ##         cov = powerSum(data,~sheep+cows,fixed=list(gamma=1))

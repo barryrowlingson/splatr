@@ -48,8 +48,11 @@ powerSum <- function(f, fixed=NULL, starting=NULL, prefixes=c("beta","gamma")){
       betas = exp(P[-match(prefixes[2],names(P))]) # betas constrained positive
       return(as.vector((mm[i,,drop=FALSE]^gamma) %*% c(1,betas))) # 1 for the baseline variable
     }
+    attr(F,"formula") <- "powered sum"
+    class(F)=c("pfunc","function")
     F
   }
+  class(makeF)=c("pfuncmaker","function")
   makeF
   
 }

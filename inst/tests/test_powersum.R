@@ -30,6 +30,13 @@ expect_error(powerSum(~cows+sheep,fixed=list(gamma=2),prefixes=c("zeta","lamma")
 
 p3 = powerSum(~cows+sheep,fixed=list(lamma=2),prefixes=c("zeta","lamma"))(data)
 expect_equal(p3(1:10,2.3),data$cows^2+ exp(2.3)*data$sheep^2)
+
+# testing boolean selection
+
+  expect_equal(p3(1:5,2.3),p3(c(rep(TRUE,5),rep(FALSE,5)),2.3))
+  expect_equal(p3(c(1,3,4,5,9),2.3),p3(c(TRUE,FALSE,TRUE,TRUE,TRUE,FALSE,FALSE,FALSE,TRUE,FALSE),2.3))
+  
   
 }
           )
+
