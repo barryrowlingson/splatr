@@ -5,6 +5,6 @@
   likSIR2(data, times, cov, distDecay)
 }
 \description{
-  SIR2 models
+  returns a likelihood function
 }
 

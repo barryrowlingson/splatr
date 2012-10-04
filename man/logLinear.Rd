@@ -2,15 +2,10 @@
 \alias{logLinear}
 \title{log-linear terms}
 \usage{
-  logLinear(data, f, fixed = NULL, starting = NULL,
-    prefixes = "beta")
+  logLinear(f, starting = NULL, prefixes = "beta")
 }
 \arguments{
-  \item{data}{data frame for evaluation}
-
   \item{f}{formula}
-
-  \item{fixed}{list of fixed parameters}
 
   \item{starting}{list of starting values}
 
